@@ -1,7 +1,14 @@
+WoP-ODROID
+===========
+
+World of Padman for ODROID (featuring install feature, desktop and desktop icon)
+ * added CLIENT_LIBS to renderer_opengl1_arm.so
+
+
 WoP-Pandora
 ===========
 
-Word of Padman for OpenPandora (featuring ARM support and GLES renderer)
+World of Padman for OpenPandora (featuring ARM support and GLES renderer)
 
 OpenPandora
 ===========

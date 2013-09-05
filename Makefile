@@ -8,7 +8,8 @@ COMPILE_PLATFORM=$(shell uname|sed -e s/_.*//|tr '[:upper:]' '[:lower:]'|sed -e 
 
 COMPILE_ARCH=$(shell uname -m | sed -e s/i.86/i386/)
 
-COMPILE_PLATFORM=pandora
+#COMPILE_PLATFORM=pandora
+COMPILE_PLATFORM=odroid
 COMPILE_ARCH=arm
 
 ifeq ($(COMPILE_PLATFORM),sunos)
@@ -478,6 +479,95 @@ ifeq ($(PLATFORM),pandora)
   BASE_CFLAGS += -DPANDORA -DARM -DNEON -DHAVE_GLES
 
 else # ifeq pandora
+
+
+#############################################################################
+# SETUP AND BUILD -- ODROID
+#############################################################################
+
+ifeq ($(PLATFORM),odroid)
+
+  BASE_CFLAGS = -Wall -fno-strict-aliasing -Wimplicit -Wstrict-prototypes \
+    -pipe -DUSE_ICON -mcpu=cortex-a9 -mfpu=neon -mfloat-abi=hard -fsigned-char \
+    -ftree-vectorize -fsingle-precision-constant
+  CLIENT_CFLAGS = $(SDL_CFLAGS)
+  SERVER_CFLAGS =
+  USE_LOCAL_HEADERS = 
+  
+  ifeq ($(USE_OPENAL),1)
+    CLIENT_CFLAGS += -DUSE_OPENAL
+    ifeq ($(USE_OPENAL_DLOPEN),1)
+      CLIENT_CFLAGS += -DUSE_OPENAL_DLOPEN
+    endif
+  endif
+
+  ifeq ($(USE_CURL),1)
+    CLIENT_CFLAGS += -DUSE_CURL
+    ifeq ($(USE_CURL_DLOPEN),1)
+      CLIENT_CFLAGS += -DUSE_CURL_DLOPEN
+    endif
+  endif
+
+  ifeq ($(USE_CODEC_VORBIS),1)
+    CLIENT_CFLAGS += -DUSE_CODEC_VORBIS
+  endif
+
+  OPTIMIZEVM = -O3 -funroll-loops -fomit-frame-pointer
+  OPTIMIZE = $(OPTIMIZEVM) -ffast-math
+  HAVE_VM_COMPILED=
+
+  ifneq ($(HAVE_VM_COMPILED),true)
+    BASE_CFLAGS += -DNO_VM_COMPILED
+  endif
+
+  SHLIBEXT=so
+  SHLIBCFLAGS=-fPIC -fvisibility=hidden
+  SHLIBLDFLAGS=-shared $(LDFLAGS)
+
+  THREAD_LIBS=-lpthread
+  LIBS=-ldl -lm
+
+  CLIENT_LIBS=$(SDL_LIBS) -lGLESv1_CM -lEGL
+
+  ifeq ($(USE_OPENAL),1)
+    ifneq ($(USE_OPENAL_DLOPEN),1)
+      CLIENT_LIBS += -lopenal
+    endif
+  endif
+
+  ifeq ($(USE_CURL),1)
+    ifneq ($(USE_CURL_DLOPEN),1)
+      CLIENT_LIBS += -lcurl
+    endif
+  endif
+
+  ifeq ($(USE_CODEC_VORBIS),1)
+#Sago: Here I get vorbis to compile in Windows:
+    ifeq ($(PLATFORM),mingw32)
+      CLIENT_LIBS += $(LIBSDIR)/win32/libvorbisfile.a $(LIBSDIR)/win32/libvorbis.a $(LIBSDIR)/win32/libogg.a
+    else
+      CLIENT_LIBS += -lvorbisfile -lvorbis -logg
+    endif
+  endif
+
+  ifeq ($(USE_MUMBLE),1)
+    CLIENT_LIBS += -lrt
+  endif
+
+  ifeq ($(USE_LOCAL_HEADERS),1)
+    CLIENT_CFLAGS += -I$(SDLHDIR)/include
+  endif
+  
+  #No gles2 for now.
+  BUILD_RENDERER_OPENGL2=0
+
+  #I have problem with the Opus codec compilation, disable for now...
+  USE_CODEC_OPUS=0
+  
+  BASE_CFLAGS += -DODROID -DARM -DNEON -DHAVE_GLES
+
+else # ifeq odroid
+
 
 #############################################################################
 # SETUP AND BUILD -- MAC OS X
@@ -965,6 +1055,7 @@ else # ifeq sunos
 
 endif #Linux
 endif #pandora
+endif #odroid
 endif #darwin
 endif #mingw32
 endif #FreeBSD
@@ -1861,7 +1952,7 @@ $(B)/wop$(FULLBINEXT): $(Q3OBJ) $(LIBSDLMAIN)
 $(B)/renderer_opengl1_$(SHLIBNAME): $(Q3ROBJ) $(Q3POBJ)
 	$(echo_cmd) "LD $@"
 	$(Q)$(CC) $(CFLAGS) $(SHLIBLDFLAGS) -o $@ $(Q3ROBJ) $(Q3POBJ) \
-		$(THREAD_LIBS) $(LIBSDLMAIN) $(RENDERER_LIBS) $(LIBS)
+		$(THREAD_LIBS) $(LIBSDLMAIN) $(RENDERER_LIBS) $(LIBS) $(CLIENT_LIBS)
 
 $(B)/renderer_opengl1_smp_$(SHLIBNAME): $(Q3ROBJ) $(Q3POBJ_SMP)
 	$(echo_cmd) "LD $@"
@@ -1876,7 +1967,7 @@ $(B)/wop$(FULLBINEXT): $(Q3OBJ) $(Q3ROBJ) $(Q3POBJ) $(LIBSDLMAIN)
 
 $(B)/wop-smp$(FULLBINEXT): $(Q3OBJ) $(Q3ROBJ) $(Q3POBJ_SMP) $(LIBSDLMAIN)
 	$(echo_cmd) "LD $@"
- 	$(Q)$(CC) $(CLIENT_CFLAGS) $(CFLAGS) $(CLIENT_LDFLAGS) $(LDFLAGS) $(THREAD_LDFLAGS) \
+	$(Q)$(CC) $(CLIENT_CFLAGS) $(CFLAGS) $(CLIENT_LDFLAGS) $(LDFLAGS) $(THREAD_LDFLAGS) \
 		-o $@ $(Q3OBJ) $(Q3ROBJ) $(Q3POBJ_SMP) \
  		$(THREAD_LIBS) $(LIBSDLMAIN) $(CLIENT_LIBS) $(RENDERER_LIBS) $(LIBS)
 endif
@@ -2687,3 +2778,14 @@ endif
 	release targets \
 	toolsclean toolsclean2 toolsclean-debug toolsclean-release \
 	$(OBJ_D_FILES) $(TOOLSOBJ_D_FILES)
+ifeq ($(PLATFORM),odroid)
+install:
+	if test -d build/release-odroid-arm/wop/ ; then install -d /opt/WoP/wop; install build/release-odroid-arm/wop/* /opt/WoP/wop/ ;	fi
+	install -d /opt/WoP/
+	install misc/WoP.desktop /usr/share/applications/
+	install build/release-odroid-arm/wop.arm /opt/WoP/
+	install build/release-odroid-arm/wopded.arm /opt/WoP/
+	install build/release-odroid-arm/renderer_opengl1_arm.so /opt/WoP/
+	install misc/WoP-final.ico /opt/WoP/
+endif
+

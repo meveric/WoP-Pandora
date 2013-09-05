@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=World of Padman
+Exec=/opt/WoP/wop.arm
+Icon=/opt/WoP/WoP-final.ico
+Type=Application
+Terminal=false
+Encoding=UTF-8
+Categories=Game;ActionGame;
+X-SuSE-translate=false
